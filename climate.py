@@ -23,8 +23,8 @@ Base.prepare(engine, reflect=True)
 Base.classes.keys()
 
 # Save references to each table
-m = Base.classes.measurement
-s = Base.classes.station
+Measurement = Base.classes.measurement
+Station = Base.classes.station
 
 # Create our session (link) from Python to the DB
 session = Session(engine)
@@ -33,39 +33,66 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-   return 'home'
+   return (
+        f"Available Routes:<br/>"
+        f"/api/v1.0/precipitation<br/>"
+        f"/api/v1.0/stations<br/>"
+        f"/api/v1.0/tobs<br/>"
+        f"/api/v1.0/start<br/>"
+        f"/api/v1.0/start/end<br/>"
+
+    )
 @app.route('/api/v1.0/precipitation')  
-#Query for the dates and temperature observations from 
-# the last year.
-#Convert the query results to a Dictionary using
-# `date` as the key and `tobs` as the value.
-#Return the JSON representation of your dictionary.
-
 def precipitation():
-    return print('precip')
-@app.route('/api/v1.0/stations')
-#Return a JSON list of stations from the dataset.
+    last_year = timedelta(days=365)
+    one_year_tobs=session.query(Measurement.date, Measurement.tobs).filter(Measurement.date > (datetime.datetime.today()-last_year)).all()
+    plist = []
+    for row in one_year_tobs:
+        plist.append({"station": row[0], "date": row[1], "prcp": row[2]})
 
+    return jsonify(plist)
+
+
+@app.route('/api/v1.0/stations')
 def stations():
-    return print(stations)
+    stations = session.query(Station.station, Station.name).all()
+    station_list = []
+    for row in stations:
+        stationList.append({"station": row[0], "name": row[1]})
+
+    return jsonify(stationList)
+
 @app.route('/api/v1.0/tobs')
-#Return a JSON list of Temperature Observations (tobs)
-#for the previous year.... return jsonified
-def tobs():
-    return print(tobs)
+def tobs(): 
+    year = timedelta(days=365)
+    one_year_tobs = session.query(Measurement.date, Measurement.tobs, Measurement.station).filter(Measurement.date > (datetime.datetime.today()-year)).all()
+    tobsList = []
+    for row in tobs:
+        tobsList.append({"station": row[0], "date": row[1], "tob": row[2]})
+
+    return jsonify(tobsList)
+
+
 @app.route('/api/v1.0/<start>')
-#When given the start only, calculate `TMIN`, `TAVG`,
-#and `TMAX` for all dates greater than and equal to the 
-# start date.... return jsonified
-def startDate():
-    start_date = 23
-    return(start_date)
+def startDate(start):
+ start_data = session.query(func.min(Measurement.tobs), func.max(Measurement.tobs), \
+ func.avg(Measurement.tobs).filter(Measurement.date >= start).all()
+  temp_dict = {'TMIN':temp_data[0][0], 'TMAX':temp_data[0][1], 'TAVG':temp_data[0][2]}
+    if temp_dict['TMIN'] != None:
+        return jsonify(temp_dict)
+
+    return jsonify({"error": f"{start} data not found."}), 404
+
 @app.route('/api/v1.0/<start>/<end>')
-#When given the start and the end date, calculate the 
-# `TMIN`, `TAVG`, and `TMAX` for dates between the start
-# and end date inclusive.
-def start_end():
-    return(start_date)
+def rangeData(start, end):
+    temp_data = session.query(func.min(Measurement.tobs), func.max(Measurement.tobs), \
+    func.avg(Measurement.tobs).filter(Measurement.date >= start)\
+    .filter(Measurement.date <= end).all()
+    temp_dict = {'TMIN':temp_data[0][0], 'TMAX':temp_data[0][1], 'TAVG':temp_data[0][2]}
+    if temp_dict['TMIN'] != None:
+        return jsonify(temp_dict)
+
+    return jsonify({"error": f"Data between {start} and {end} not found."}), 404    
 
 if __name__ == '__main__':
     app.run(debug=True)
